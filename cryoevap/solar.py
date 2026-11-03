@@ -8,6 +8,25 @@ def declinacion(d):
     Wu et al. (2026), Ec. 10."""
     return 23.45 * np.sin(np.radians(360.0 / 365.0 * (284 + d)))
 
+def ecuacion_tiempo(d):
+    """Ecuación del tiempo EoT [min]. d: día del año (1 = 1 de enero).
+    Fórmula estándar aproximada (tipo Spencer / Duffie-Beckman)."""
+    B = np.radians(360.0 / 364.0 * (d - 81))
+    return 9.87 * np.sin(2 * B) - 7.53 * np.cos(B) - 1.5 * np.sin(B)
+
+
+def hora_solar(t_reloj, d, lon_oeste, utc_offset=0.0):
+    """Hora solar [h] a partir de una hora de reloj [h].
+    t_reloj: hora medida en el huso UTC + utc_offset [h] (INIA: -4; DMC: 0).
+    d: día del año (1 = 1 de enero).
+    lon_oeste: longitud del lugar [grados], POSITIVA al oeste (Mejillones: 70.443).
+    Fórmula de clases: t_solar = t_reloj + 4 min * (LME - lon_oeste) + EoT
+    """
+    LME = -15.0 * utc_offset                        # meridiano del huso [grados al oeste]
+    correccion_longitud = 4.0 * (LME - lon_oeste)   # [min]: 4 min por grado
+    correccion_EoT = ecuacion_tiempo(d)             # [min]
+    correccion_total = correccion_longitud + correccion_EoT   # [min]
+    return t_reloj + correccion_total / 60.0        # de min a h
 
 def angulo_horario(t_solar):
     """Ángulo horario H [grados]. t_solar: hora solar [h].
