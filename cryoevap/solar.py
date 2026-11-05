@@ -62,7 +62,7 @@ def irradiancia_techo(A, B, C, beta1):
     return I_DN * (sin_b1 + C)
 
 
-def irradiancia_pared(A, B, C, rho_G, beta1):
+def irradiancia_pared(A, B, C, rho_G, beta1): # Revisar, si usar promedio o no, o separar por radiación, en función del tiempo
     """Irradiancia total sobre la pared vertical I_wall [W/m2], promediada
     sobre toda la circunferencia (modelo axisimétrico).
     Como no a todo el estanque le da el mismo sol, se promedia sobre toda la circunferencia. 
