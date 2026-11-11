@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from cryoevap.datos_solar import perfil_radiacion
+
 
 def declinacion(d):
     """Declinación solar delta [grados]. d: día del año (1 = 1 de enero a 365 días).
@@ -76,3 +78,60 @@ def irradiancia_pared(A, B, C, rho_G, beta1): # Revisar, si usar promedio o no, 
     cos_b1 = np.cos(np.radians(beta1))
     return I_DN * (cos_b1 / np.pi + C / 2 + rho_G / 2 * (sin_b1 + C))
 
+def beta1(t, t0, d=355, L=-23.1002, lon_oeste=70.4483, utc_offset=-4):
+    """Altitud solar beta_1 (grados) en el instante de simulacion t (s).
+
+    t0: hora de reloj (UTC-4, en horas) al inicio de la simulacion.
+    d: dia del ano (355 = 21 de diciembre).
+    """
+    t_reloj = t0 + np.asarray(t, dtype=float) / 3600.0
+    H = angulo_horario(hora_solar(t_reloj, d, lon_oeste, utc_offset))
+    return altitud_solar(L, declinacion(d), H)
+
+
+def rad_directa(t, t0, datos, **geo):
+    """Radiacion directa (W/m2) sobre (pared, techo).
+
+    Pared: I_DN cos(beta_1)/pi, promedio en toda la circunferencia.
+    Techo: directa horizontal, ghi - difh. Ambas son 0 con el sol bajo el horizonte.
+    """
+    dni, difh, ghi = perfil_radiacion(t, t0, datos)
+    b = beta1(t, t0, **geo)
+    dia = b > 0
+    pared = np.where(dia, dni * np.cos(np.radians(b)) / np.pi, 0.0)
+    techo = np.where(dia, np.maximum(ghi - difh, 0.0), 0.0)
+    return pared, techo
+
+def rad_difusa(t, t0, datos):
+    """Difusa (W/m2) sobre (pared, techo).
+
+    Pared: difh/2 (factor de vista 1/2). Techo: difh (ve todo el cielo).
+    """
+    dni, difh, ghi = perfil_radiacion(t, t0, datos)
+    return difh / 2, difh
+
+
+def rad_reflejada(t, t0, datos, rho_G=0.2):
+    """Reflejada del suelo (W/m2) sobre (pared, techo).
+
+    Pared: rho_G/2 * ghi (la pared ve la mitad suelo). Techo: 0.
+    """
+    dni, difh, ghi = perfil_radiacion(t, t0, datos)
+    return rho_G / 2 * ghi, np.zeros_like(ghi)
+
+
+def I_pared(t, t0, datos, rho_G=0.2, **geo):
+    """I_wall(t) = I_D + I_d + I_R sobre la pared (W/m2)."""
+    dia = beta1(t, t0, **geo) > 0
+    total = (rad_directa(t, t0, datos, **geo)[0]
+             + rad_difusa(t, t0, datos)[0]
+             + rad_reflejada(t, t0, datos, rho_G)[0])
+    return np.where(dia, total, 0.0)
+
+
+def I_techo(t, t0, datos, **geo):
+    """I_roof(t) = I_D + I_d sobre el techo (W/m2)."""
+    dia = beta1(t, t0, **geo) > 0
+    total = (rad_directa(t, t0, datos, **geo)[1]
+             + rad_difusa(t, t0, datos)[1])
+    return np.where(dia, total, 0.0)
